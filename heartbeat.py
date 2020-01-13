@@ -3,10 +3,12 @@ import time
 from _encrypt import DataEnc, key
 import json
 import requests
-
+from requests.exceptions import HTTPError
 
 encrypt = DataEnc()
+
 b_data = {"id": "531030026147", "lon": 100.832004, "lat": 45.832004, "sw_version": "1.2"}
+
 b_data_json = json.dumps(b_data)
 b_data_pad = encrypt.pad(b_data_json)
 b_data_des = encrypt.des_encrypt_64encode(b_data_pad)
@@ -51,6 +53,21 @@ class HeartBeat(threading.Thread):
         """ Method that runs in the background """
 
         while True:
+            try:
+                response = requests.post('IP-Address',
+                                         json=request_data,
+                                         headers=HEADERS)
+            except HTTPError as http_e:
+                print(f'HTTP error occurred: {http_e}') #change to logging later
+                continue
+            except Exception as err:
+                print(f'Other error occurred: {err}') #change to logging later
+                continue
+            else:
+                if response:
+                    if response.status_code == 200
+
+
             # more code to be inserted here
             time.sleep(self.interval)
 
