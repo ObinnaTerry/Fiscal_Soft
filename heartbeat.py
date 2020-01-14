@@ -50,58 +50,71 @@ class HeartBeat(threading.Thread):
     """ heartbeat class for sending heartbeat monitoring signal
     """
 
-    def __init__(self, interval=900):
+    def __init__(self, interval=5):
         threading.Thread.__init__(self)
 
         self.interval = interval
         thread = threading.Thread(target=self.run)
         thread.daemon = True  # Daemonize thread so thread stops when main program exits
         thread.start()
-        try:
-            self.conn = sqlite3.connect('fiscal.db')
-        except Error as e:
-            print(e)  # change to logging
-        self.cur = self.conn.cursor()
-        self.cur.execute(create_HB_table)
-        self.conn.commit()
+        print(thread.getName())
 
-    # def insert(self, res, result):
-    #     self.cur.execute("INSERT INTO books VALUES (NULL,?,?)", (res, result))
-    #     self.conn.commit()
+    def decrypt_response(self, _key, content):
+        _key = encrypt.rsa_decrypt(key)
+        content = encrypt.des_decrypt(_key, content)
+        return content.strip('{}')
 
     def run(self):
         """ Method that runs in the background """
 
         while True:
             try:
-                response = requests.post('IP-Address',
+                conn = sqlite3.connect('fiscal.db')
+            except Error as e:
+                print(e)  # change to logging
+                continue
+            else:
+                cur = conn.cursor()
+                cur.execute(create_HB_table)
+                conn.commit()
+            try:
+                response = requests.post('http://41.72.108.82:8097/iface/index',
                                          json=request_data,
                                          headers=HEADERS)
             except HTTPError as http_e:
                 print(f'HTTP error occurred: {http_e}')  # change to logging later
-                continue
+                pass
             except Exception as err:
                 print(f'Other error occurred: {err}')  # change to logging later
-                continue
+                pass
             else:
                 if response and response.status_code == 200:
                     try:
-                        message = response.json()['message']['body']['data']['sign']
-                    except KeyError:
+                        sign_ = response.json()['message']['body']['data']['sign']
+                    except KeyError:  # server returned non-encrypted data
                         result = 'failure'
-                        res = response.json()['message']['body']['data']['content']
-                        self.cur.execute("INSERT INTO books VALUES (NULL,?,?)", (res, result))
-                        self.conn.commit()
-                        continue
+                        content = response.json()['message']['body']['data']['content']
+                        print(content)
+                        cur.execute("INSERT INTO heartbeat_monitor VALUES (NULL,?,?,datetime(CURRENT_TIMESTAMP,"
+                                    "'localtime'))", (content, result))
+                        conn.commit()
+                        pass
                     else:
-                        result = 'success'
-                        res = response.json()['message']['body']['data']['content']
-                        self.cur.execute("INSERT INTO books VALUES (NULL,?,?)", (res, result))
-                        self.conn.commit()
-
-                        # insert code that logs response to BD & log file
+                        encrypted_content = response.json()['message']['body']['data']['content']
+                        md5 = encrypt.md5(encrypted_content.encode())
+                        if md5.decode() == sign_:
+                            result = 'success'
+                            _key = response.json()['message']['body']['data']['key']
+                            decrypted_content = self.decrypt_response(_key, encrypted_content)
+                            cur.execute("INSERT INTO books VALUES (NULL,?,?, NULL)", (decrypted_content, result))
+                            conn.commit()
+                        else:
+                            pass
+                else:
+                    pass
 
             time.sleep(self.interval)
 
-
-print(json.dumps(request_data))
+#
+# g = HeartBeat()
+# time.sleep(20)
