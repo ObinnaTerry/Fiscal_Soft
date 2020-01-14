@@ -1,5 +1,5 @@
 from Crypto.Cipher import DES
-from secrets import token_bytes
+# from secrets import token_bytes
 import Padding
 import base64
 import hashlib
@@ -58,6 +58,11 @@ class DataEnc:
             padding.PKCS1v15()
         )
         return plain_text
+
+    def response_decrypt(self, _key, content):
+        _key = self.rsa_decrypt(_key)
+        content = self.des_decrypt(_key, content)
+        return content.strip('{}')
 
     def md5(self, data):
         self.hash.update(data)
