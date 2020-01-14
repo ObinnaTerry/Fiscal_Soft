@@ -45,6 +45,7 @@ create_HB_table = """CREATE TABLE IF NOT EXISTS heartbeat_monitor (
                                         time TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
                                     );"""
 
+
 class HeartBeat(threading.Thread):
     """ heartbeat class for sending heartbeat monitoring signal
     """
@@ -59,10 +60,14 @@ class HeartBeat(threading.Thread):
         try:
             self.conn = sqlite3.connect('fiscal.db')
         except Error as e:
-            print(e) #change to logging
+            print(e)  # change to logging
         self.cur = self.conn.cursor()
         self.cur.execute(create_HB_table)
         self.conn.commit()
+
+    # def insert(self, res, result):
+    #     self.cur.execute("INSERT INTO books VALUES (NULL,?,?)", (res, result))
+    #     self.conn.commit()
 
     def run(self):
         """ Method that runs in the background """
@@ -73,15 +78,28 @@ class HeartBeat(threading.Thread):
                                          json=request_data,
                                          headers=HEADERS)
             except HTTPError as http_e:
-                print(f'HTTP error occurred: {http_e}') #change to logging later
+                print(f'HTTP error occurred: {http_e}')  # change to logging later
                 continue
             except Exception as err:
-                print(f'Other error occurred: {err}') #change to logging later
+                print(f'Other error occurred: {err}')  # change to logging later
                 continue
             else:
-                if response:
+                if response and response.status_code == 200:
+                    try:
+                        message = response.json()['message']['body']['data']['sign']
+                    except KeyError:
+                        result = 'failure'
+                        res = response.json()['message']['body']['data']['content']
+                        self.cur.execute("INSERT INTO books VALUES (NULL,?,?)", (res, result))
+                        self.conn.commit()
+                        continue
+                    else:
+                        result = 'success'
+                        res = response.json()['message']['body']['data']['content']
+                        self.cur.execute("INSERT INTO books VALUES (NULL,?,?)", (res, result))
+                        self.conn.commit()
 
-                        #insert code that logs response to BD & log file
+                        # insert code that logs response to BD & log file
 
             time.sleep(self.interval)
 
