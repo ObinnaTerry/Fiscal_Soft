@@ -59,11 +59,6 @@ class HeartBeat(threading.Thread):
         thread.start()
         print(thread.getName())
 
-    def decrypt_response(self, _key, content):
-        _key = encrypt.rsa_decrypt(key)
-        content = encrypt.des_decrypt(_key, content)
-        return content.strip('{}')
-
     def run(self):
         """ Method that runs in the background """
 
@@ -105,10 +100,12 @@ class HeartBeat(threading.Thread):
                         if md5.decode() == sign_:
                             result = 'success'
                             _key = response.json()['message']['body']['data']['key']
-                            decrypted_content = self.decrypt_response(_key, encrypted_content)
-                            cur.execute("INSERT INTO books VALUES (NULL,?,?, NULL)", (decrypted_content, result))
+                            decrypted_content = encrypt.response_decrypt(_key, encrypted_content)
+                            cur.execute("INSERT INTO books VALUES (NULL,?,?, datetime(CURRENT_TIMESTAMP,'localtime'))",
+                                        (decrypted_content, result))
                             conn.commit()
                         else:
+                            print('MD5 mismatch, decryption aborted!')  # change to logging
                             pass
                 else:
                     pass
