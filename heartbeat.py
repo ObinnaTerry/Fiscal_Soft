@@ -1,9 +1,11 @@
+import sqlite3
 import threading
 import time
 from _encrypt import DataEnc, key
 import json
 import requests
 from requests.exceptions import HTTPError
+from sqlite3 import Error
 
 encrypt = DataEnc()
 
@@ -36,6 +38,12 @@ request_data = {
     }
 }
 
+create_HB_table = """CREATE TABLE IF NOT EXISTS heartbeat_monitor (
+                                        id integer PRIMARY KEY,
+                                        response text NOT NULL,
+                                        result text NOT NULL,
+                                        time TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+                                    );"""
 
 class HeartBeat(threading.Thread):
     """ heartbeat class for sending heartbeat monitoring signal
@@ -48,6 +56,13 @@ class HeartBeat(threading.Thread):
         thread = threading.Thread(target=self.run)
         thread.daemon = True  # Daemonize thread so thread stops when main program exits
         thread.start()
+        try:
+            self.conn = sqlite3.connect('fiscal.db')
+        except Error as e:
+            print(e) #change to logging
+        self.cur = self.conn.cursor()
+        self.cur.execute(create_HB_table)
+        self.conn.commit()
 
     def run(self):
         """ Method that runs in the background """
@@ -65,10 +80,9 @@ class HeartBeat(threading.Thread):
                 continue
             else:
                 if response:
-                    if response.status_code == 200
 
+                        #insert code that logs response to BD & log file
 
-            # more code to be inserted here
             time.sleep(self.interval)
 
 
