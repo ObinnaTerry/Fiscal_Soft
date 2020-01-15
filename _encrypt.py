@@ -3,9 +3,12 @@ from Crypto.Cipher import DES
 import Padding
 import base64
 import hashlib
+from Crypto.Cipher import PKCS1_v1_5
+from Crypto.PublicKey import RSA
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import padding
+
 
 key = b'\xbe\x9aT\xc1SD%\xbe'
 
@@ -15,18 +18,15 @@ class DataEnc:
     def __init__(self):
         self.cipher = DES.new(key, DES.MODE_ECB)
         self.hash = hashlib.md5()
-        with open('pp.pem', mode='rb') as key_file:
+        with open('private_key.pem', mode='rb') as key_file:
             self.private_key = serialization.load_pem_private_key(
                 key_file.read(),
                 password=None,
                 backend=default_backend()
             )
-        with open("public_key.pem", "rb") as key_file:
-            self.public_key = serialization.load_pem_public_key(
-                key_file.read(),
-                backend=default_backend()
-            )
-        print(key)
+
+        with open('private_key.pem', 'r') as key_file:
+            self.private_ = RSA.importKey(key_file.read())
 
     @staticmethod
     def pad(data):
@@ -45,10 +45,12 @@ class DataEnc:
         return data_decrypt_rm_pad
 
     def rsa_encrypt(self, message):
-        cipher_text = self.public_key.encrypt(
-            message,
-            padding.PKCS1v15()
-        )
+        cipher = PKCS1_v1_5.new(self.private_)
+        cipher_text = cipher.encrypt(message)
+        # cipher_text = self.private_key.encrypt(
+        #     message,
+        #     padding.PKCS1v15()
+        # )
         return base64.b64encode(cipher_text)
 
     def rsa_decrypt(self, message):
