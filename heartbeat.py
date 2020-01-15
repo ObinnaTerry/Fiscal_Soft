@@ -45,6 +45,13 @@ create_HB_table = """CREATE TABLE IF NOT EXISTS heartbeat_monitor (
                                         time TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
                                     );"""
 
+create_cmd_table = """CREATE TABLE IF NOT EXISTS commands (
+                                        id integer PRIMARY KEY,
+                                        command text NOT NULL,
+                                        flag integer NOT NULL,
+                                        time TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+                                    );"""
+
 
 class HeartBeat(threading.Thread):
     """ heartbeat class for sending heartbeat monitoring signal
@@ -71,6 +78,8 @@ class HeartBeat(threading.Thread):
             else:
                 cur = conn.cursor()
                 cur.execute(create_HB_table)
+                conn.commit()
+                cur.execute(create_cmd_table)
                 conn.commit()
             try:
                 response = requests.post('http://41.72.108.82:8097/iface/index',
@@ -104,6 +113,8 @@ class HeartBeat(threading.Thread):
                             cur.execute("INSERT INTO books VALUES (NULL,?,?, datetime(CURRENT_TIMESTAMP,'localtime'))",
                                         (decrypted_content, result))
                             conn.commit()
+                            command_len = 0
+
                         else:
                             print('MD5 mismatch, decryption aborted!')  # change to logging
                             pass
