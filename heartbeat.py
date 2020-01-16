@@ -11,12 +11,12 @@ encrypt = DataEnc()
 
 b_data = {"id": "531030026147", "lon": 100.832004, "lat": 45.832004, "sw_version": "1.2"}
 
-b_data_json = json.dumps(b_data)
-b_data_pad = encrypt.pad(b_data_json)
-b_data_des = encrypt.des_encrypt_64encode(b_data_pad)
+# b_data_json = json.dumps(b_data)
+# b_data_pad = encrypt.pad(b_data_json)
+b_data_des = encrypt.encrypted_content(b_data)
 
-sign = encrypt.md5(b_data_des)
-key_ = encrypt.rsa_encrypt(key)
+sign = encrypt.content_sign(b_data_des.encode())
+key_ = encrypt.content_key(key)
 
 HEADERS = {
     'Content-Length': '1300',
@@ -30,9 +30,9 @@ request_data = {
                 "device": "531030026147",
                 "serial": "000000",
                 "bus_id": "MONITOR-R",
-                "content": b_data_des.decode(),
-                "sign": sign.decode(),
-                "key": key_.decode()
+                "content": b_data_des,
+                "sign": sign,
+                "key": key_
             }
         }
     }
@@ -70,6 +70,7 @@ class HeartBeat(threading.Thread):
         """ Method that runs in the background """
 
         while True:
+            bus_id_list = ["INVOICE-RETRIEVE-R", "INVOICE-APP-R", "INFO-MODI-R", "R-R-03", "R-R-02",  "R-R-01"]
             try:
                 conn = sqlite3.connect('fiscal.db')
             except Error as e:
@@ -105,7 +106,7 @@ class HeartBeat(threading.Thread):
                         pass
                     else:
                         encrypted_content = response.json()['message']['body']['data']['content']
-                        md5 = encrypt.md5(encrypted_content.encode())
+                        md5 = encrypt.content_sign(encrypted_content.encode())
                         if md5.decode() == sign_:
                             result = 'success'
                             _key = response.json()['message']['body']['data']['key']
@@ -113,16 +114,19 @@ class HeartBeat(threading.Thread):
                             cur.execute("INSERT INTO books VALUES (NULL,?,?, datetime(CURRENT_TIMESTAMP,'localtime'))",
                                         (decrypted_content, result))
                             conn.commit()
-                            command_len = 0
+                            command_len = len(decrypted_content['commands'])
+                            if command_len > 0:  # response data contains command instructions
+                                for _ in range(command_len):
+                                    cur.execute("INSERT INTO books VALUES")
 
                         else:
                             print('MD5 mismatch, decryption aborted!')  # change to logging
                             pass
                 else:
                     pass
-
+            cur.close()
             time.sleep(self.interval)
 
 #
-# g = HeartBeat()
-# time.sleep(20)
+g = HeartBeat()
+time.sleep(20)
