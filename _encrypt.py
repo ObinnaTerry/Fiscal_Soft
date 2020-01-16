@@ -1,6 +1,7 @@
 from Crypto.Cipher import DES
 # from secrets import token_bytes
 import Padding
+import json
 import base64
 import hashlib
 from Crypto.Cipher import PKCS1_v1_5
@@ -44,14 +45,15 @@ class DataEnc:
         data_decrypt_rm_pad = Padding.removeNullPadding(data_decrypt.decode(), 8)
         return data_decrypt_rm_pad
 
-    def rsa_encrypt(self, message):
+    def content_key(self, message):
         cipher = PKCS1_v1_5.new(self.private_)
         cipher_text = cipher.encrypt(message)
         # cipher_text = self.private_key.encrypt(
         #     message,
         #     padding.PKCS1v15()
         # )
-        return base64.b64encode(cipher_text)
+        b_64 = base64.b64encode(cipher_text)
+        return b_64.decode()
 
     def rsa_decrypt(self, message):
         message = base64.b64decode(message)
@@ -66,6 +68,14 @@ class DataEnc:
         content = self.des_decrypt(_key, content)
         return content.strip('{}')
 
-    def md5(self, data):
+    def content_sign(self, data):
         self.hash.update(data)
-        return base64.b64encode(self.hash.digest())
+        b_64 = base64.b64encode(self.hash.digest())
+        return b_64.decode()
+
+    def encrypted_content(self, data):
+        """produces encrypted content in the specified format"""
+        data = json.dumps(data)
+        data = self.pad(data)
+        data = self.des_encrypt_64encode(data)
+        return data.decode()
