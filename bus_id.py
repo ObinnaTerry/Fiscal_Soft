@@ -84,7 +84,7 @@ class BusId:
             print(f'Other error occurred: {err}')  # change to logging later
             pass
         else:
-            if response and response.status_code == 200:
+            if response and response.status_code == 200:  # 200 is success code for http exchange
                 try:
                     sign_ = response.json()['message']['body']['data']['sign']
                 except KeyError:  # server returned non-encrypted data
@@ -116,8 +116,8 @@ class BusId:
     def content_proc(self, bus_id, data):
         """
         Processes decrypted server response
-        data: decrypted content from server response
-        bus_id: business ID from decrypted data
+        data: decrypted content from server response. type: dict
+        bus_id: business ID from decrypted data. type: str
         """
         if bus_id == 'R-R-01':
             if data['code'] == 200:  # private key successfully obtained
@@ -143,8 +143,9 @@ class BusId:
 
         if bus_id == 'R-R-03':
             if data['code'] == 200:
-                # more code. do something. set an initialization flag to True
-                pass
+                with open('initialization', 'ab') as tax_file:
+                    data = {'initialization': True}
+                    pickle.dump(data, tax_file)
             else:  # initialization failed
                 time.sleep(3)  # wait 3 secs before attempting to resend tax info request
                 self.server_exchange(bus_id, self.id)
@@ -164,5 +165,3 @@ class BusId:
             else:
                 time.sleep(3)
                 self.server_exchange(bus_id, self.id)
-
-
