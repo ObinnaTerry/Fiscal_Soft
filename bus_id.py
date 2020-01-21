@@ -22,6 +22,24 @@ create_log_table = """CREATE TABLE IF NOT EXISTS exchange_log (
                                         time TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
                                     );"""
 
+create_inv_rec_table = """CREATE TABLE IF NOT EXISTS invoice_rec (
+                                        id integer PRIMARY KEY,
+                                        invoice_code text NOT NULL,
+                                        start_num text NOT NULL,
+                                        end_num text NOT NULL,
+                                        total integer NOT NULL,
+                                        create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+                                    );"""
+
+create_inv_invent_table = """CREATE TABLE IF NOT EXISTS invoice_invent (
+                                        id integer PRIMARY KEY,
+                                        invoice_code text NOT NULL,
+                                        start_num text NOT NULL,
+                                        end_num text NOT NULL,
+                                        available integer NOT NULL,
+                                        create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+                                        modify_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+                                    );"""
 
 class BusId:
 
@@ -112,6 +130,8 @@ class BusId:
                                     "'localtime'))", (request_data, bus_id, decrypted_content, result))
                         self.conn.commit()
                         cur.close()
+                    else:
+                        pass  # add logging here to indicate md5 mismatch
 
     def content_proc(self, bus_id, data):
         """
