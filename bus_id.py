@@ -6,6 +6,7 @@ from sqlite3 import Error
 import sqlite3
 import time
 
+
 HEADERS = {
     'Content-Length': '1300',
     'Content-Type': 'application/json',
@@ -22,14 +23,16 @@ create_log_table = """CREATE TABLE IF NOT EXISTS exchange_log (
                                         time TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
                                     );"""
 
-create_inv_rec_table = """CREATE TABLE IF NOT EXISTS invoice_rec (
-                                        id integer PRIMARY KEY,
-                                        invoice_code text NOT NULL,
-                                        start_num text NOT NULL,
-                                        end_num text NOT NULL,
-                                        total integer NOT NULL,
-                                        create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
-                                    );"""
+# create_inv_rec_table = """CREATE TABLE IF NOT EXISTS invoice_rec (
+#                                         id integer PRIMARY KEY,
+#                                         invoice_code text NOT NULL,
+#                                         start_num text NOT NULL,
+#                                         end_num text NOT NULL,
+#                                         total integer NOT NULL,
+#                                         use_flag integer NOT NULL,
+#                                         UNIQUE(invoice_code, start_num, end_num),
+#                                         create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
+#                                     );"""
 
 create_inv_invent_table = """CREATE TABLE IF NOT EXISTS invoice_invent (
                                         id integer PRIMARY KEY,
@@ -37,28 +40,35 @@ create_inv_invent_table = """CREATE TABLE IF NOT EXISTS invoice_invent (
                                         start_num text NOT NULL,
                                         end_num text NOT NULL,
                                         available integer NOT NULL,
+                                        UNIQUE(invoice_code, start_num, end_num),
+                                        use_flag integer NOT NULL,
                                         create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
                                         modify_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL
                                     );"""
 
+
 class BusId:
 
     def __init__(self):
+
         self.id = {"id": "531030026147"}
-        db_connect = False
-        while not db_connect:
+
+        while True:
             try:
                 self.conn = sqlite3.connect('fiscal.db')
+                cur = self.conn.cursor()
+                cur.execute(create_log_table)  # create a log table is not exist on start-up
+                self.conn.commit()
+                # cur.execute(create_inv_rec_table)
+                # self.conn.commit()
+                cur.execute(create_inv_invent_table)
+                self.conn.commit()
+                cur.close()
+                break
             except Error as e:
                 print(e)  # change to logging
                 time.sleep(3)
                 continue
-            else:
-                db_connect = True
-                cur = self.conn.cursor()
-                cur.execute(create_log_table)  # create a log table is not exist on start-up
-                self.conn.commit()
-                cur.close()
 
         with open('content_data', 'rb') as file:  # load pickle file containing data structure
             self.data = pickle.load(file)
@@ -66,7 +76,7 @@ class BusId:
     def format_data(self, bus_id, content, sign, _key):
         """
         Returns json data for communication with the server
-        bus_id: business ID
+        bus_id: business ID; type:str
         content: DES encrypted business data
         sign: MD5 sign of content
         _key: RSA encrypted 8-byte key
@@ -110,8 +120,8 @@ class BusId:
                     result = 'failure'
                     content = response.json()['message']['body']['data']['content']
                     print(content)
-                    cur.execute("INSERT INTO exchange_log VALUES (NULL,?,?,?,?,datetime(CURRENT_TIMESTAMP,"
-                                "'localtime'))", (request_data, bus_id, content, result))
+                    cur.execute("INSERT INTO exchange_log VALUES (NULL,?,?,?,?,?,datetime(CURRENT_TIMESTAMP,"
+                                "'localtime'), )", (request_data, bus_id, content, result))
                     self.conn.commit()
                     cur.close()
                     pass
@@ -180,8 +190,22 @@ class BusId:
 
         if bus_id == 'INVOICE-APP-R':
             if data['code'] == 200:
+                invoice = data['invoice']
+                for invoice_range in invoice:
+                    invoice_code = invoice_range['code']
+                    start_num = invoice_range['number-begin']
+                    end_num = invoice_range['number-end']
+                    available = int(end_num) - int(start_num) + 1
+                    cur = self.conn.cursor()
+                    try:
+                        cur.execute("INSERT INTO invoice_invent VALUES (NULL,?,?,?,?,?,datetime(CURRENT_TIMESTAMP,"
+                                    "'localtime'), datetime(CURRENT_TIMESTAMP,'localtime'))",
+                                    (invoice_code, start_num, end_num, available, 0))
+                        self.conn.commit()
+                    except Error as e:
+                        pass  # add logging here
                 # more code. process the the received invoice range
-                pass
+
             else:
                 time.sleep(3)
                 self.server_exchange(bus_id, self.id)
