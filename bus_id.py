@@ -5,7 +5,8 @@ import pickle
 from sqlite3 import Error
 import sqlite3
 import time
-
+from datetime import datetime
+import os
 
 HEADERS = {
     'Content-Length': '1300',
@@ -157,7 +158,7 @@ class BusId:
                     pri_key_file.writelines(write_list)
             else:  # private key not successfully obtained, sends a new request to server
                 with open('initialisation_data', 'rb') as file:
-                    initialisation_data = pickle.load(file)
+                    initialisation_data = pickle.load(file)  # load pickle file containing business data for pri key app
                 time.sleep(3)  # wait 3 secs before attempting to resend initialization request
                 self.server_exchange(bus_id, initialisation_data)  # add this file a pickle file
 
@@ -172,7 +173,7 @@ class BusId:
                 self.server_exchange(bus_id, self.id)
 
         if bus_id == 'R-R-03':
-            if data['code'] == 200:
+            if data['code'] == 200:  # successfully initialized
                 with open('initialization', 'ab') as tax_file:
                     data = {'initialization': True}
                     pickle.dump(data, tax_file)
@@ -200,11 +201,27 @@ class BusId:
                     try:
                         cur.execute("INSERT INTO invoice_invent VALUES (NULL,?,?,?,?,?,datetime(CURRENT_TIMESTAMP,"
                                     "'localtime'), datetime(CURRENT_TIMESTAMP,'localtime'))",
-                                    (invoice_code, start_num, end_num, available, 0))
+                                    (invoice_code, start_num, end_num, available, 0))  # 0: unused; 1:in use; 3: used
                         self.conn.commit()
                     except Error as e:
+                        err = type(e).__name__  # get the error name
+                        if err == 'IntegrityError' and 'UNIQUE' in str(e):  # a duplicate record exists in dB
+                            if not os.path.exists('duplicate_range.txt'):
+                                with open('duplicate_range.txt', 'w') as file:
+                                    file.writelines(
+                                        f'Duplicate range. invoice code: {invoice_code}, start num: {start_num}, '
+                                        f'end num: {end_num}, time: {datetime.now()}\n'
+                                    )
+                            else:
+                                with open('duplicate_range.txt', 'a') as file:
+                                    file.writelines(
+                                        f'Duplicate range. invoice code: {invoice_code}, start num: {start_num}, '
+                                        f'end num: {end_num}, time: {datetime.now()}\n'
+                                    )
+                            # add logging here
+                        else:  # some other type of error occurred
+                            pass
                         pass  # add logging here
-                # more code. process the the received invoice range
 
             else:
                 time.sleep(3)
