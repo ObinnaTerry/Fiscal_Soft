@@ -7,6 +7,7 @@ import sqlite3
 import time
 from datetime import datetime
 import os
+from _email import EmailApi
 
 HEADERS = {
     'Content-Length': '1300',
@@ -218,9 +219,11 @@ class BusId:
                                         f'Duplicate range. invoice code: {invoice_code}, start num: {start_num}, '
                                         f'end num: {end_num}, time: {datetime.now()}\n'
                                     )
-                            # add logging here
+                            email = EmailApi()
+                            email.send_message()  # send an alert email
                         else:  # some other type of error occurred
                             pass
+
                         pass  # add logging here
 
             else:
