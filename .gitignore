@@ -4,3 +4,8 @@ public_key.pem
 test.py
 venv
 .idea
+private_key.pem
+/content_data
+/DataBase.py
+/fiscal.db
+/email-creds.cfg
