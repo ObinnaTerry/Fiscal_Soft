@@ -54,7 +54,7 @@ create_cmd_table = """CREATE TABLE IF NOT EXISTS commands (
 
 
 class HeartBeat(threading.Thread):
-    """ heartbeat class for sending heartbeat monitoring signal
+    """ heartbeat class for sending heartbeat monitoring signal at specified intervals
     """
 
     def __init__(self, interval=5):
