@@ -62,7 +62,7 @@ class DataEnc:
         return data_decrypt_rm_pad
 
     def content_key(self, message):
-        """"
+        """
         encrypts message using RSA private key encryption.
         input: 8-byte key used for DES encryption.
         output: RSA encrypted, base64 encoded string
