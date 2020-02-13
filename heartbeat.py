@@ -1,18 +1,17 @@
+import pickle
 import sqlite3
 import threading
 import time
 from _encrypt import DataEnc, key
-import json
 import requests
 from requests.exceptions import HTTPError
 from sqlite3 import Error
+from bus_id import BusId
 
 encrypt = DataEnc()
 
 b_data = {"id": "531030026147", "lon": 100.832004, "lat": 45.832004, "sw_version": "1.2"}
 
-# b_data_json = json.dumps(b_data)
-# b_data_pad = encrypt.pad(b_data_json)
 b_data_des = encrypt.encrypted_content(b_data)
 
 sign = encrypt.content_sign(b_data_des.encode())
@@ -23,20 +22,11 @@ HEADERS = {
     'Content-Type': 'application/json',
 }
 
-request_data = {
-    "message": {
-        "body": {
-            "data": {
-                "device": "531030026147",
-                "serial": "000000",
-                "bus_id": "MONITOR-R",
-                "content": b_data_des,
-                "sign": sign,
-                "key": key_
-            }
-        }
-    }
-}
+with open('content_data', 'rb') as file:  # load pickle file containing data structure
+    data = pickle.load(file)
+
+prep_data = BusId()
+request_data = prep_data.format_data("MONITOR-R", b_data_des, sign, key_)
 
 create_HB_table = """CREATE TABLE IF NOT EXISTS heartbeat_monitor (
                                         id integer PRIMARY KEY,
@@ -54,10 +44,14 @@ create_cmd_table = """CREATE TABLE IF NOT EXISTS commands (
 
 
 class HeartBeat(threading.Thread):
-    """ heartbeat class for sending heartbeat monitoring signal at specified intervals
-    """
 
     def __init__(self, interval=5):
+        """This class provides the run method which will run in the background whenever the main program is executed.
+        It  is used by the EFD system to monitor the online status of V-EFD. The current device statue will be sent to
+        EFD system at a specified interval. Commands stacked in the queue list on the EFD system will be
+        submitted to the V-EFD as part of the response of heartbeat monitoring command.
+        :param interval: send signal interval. time unit = seconds
+        """
         threading.Thread.__init__(self)
 
         self.interval = interval
@@ -67,14 +61,16 @@ class HeartBeat(threading.Thread):
         print(thread.getName())
 
     def run(self):
-        """ Method that runs in the background """
+        """ Method that runs in the background and handles sending of monitoring signal to the server and processing
+        of server response
+        """
 
         while True:
-            bus_id_list = ["INVOICE-RETRIEVE-R", "INVOICE-APP-R", "INFO-MODI-R", "R-R-03", "R-R-02",  "R-R-01"]
+            bus_id_list = ["INVOICE-RETRIEVE-R", "INVOICE-APP-R", "INFO-MODI-R", "R-R-03", "R-R-02", "R-R-01"]
             try:
                 conn = sqlite3.connect('fiscal.db')
             except Error as e:
-                print(e)  # change to logging
+                print(e)  # todo: change to logging later
                 continue
             else:
                 cur = conn.cursor()
@@ -87,19 +83,19 @@ class HeartBeat(threading.Thread):
                                          json=request_data,
                                          headers=HEADERS)
             except HTTPError as http_e:
-                print(f'HTTP error occurred: {http_e}')  # change to logging later
+                print(f'HTTP error occurred: {http_e}')  # todo: change to logging later
                 pass
             except Exception as err:
-                print(f'Other error occurred: {err}')  # change to logging later
+                print(f'Other error occurred: {err}')  # todo: change to logging later
                 pass
             else:
-                if response and response.status_code == 200:
+                if response and response.status_code == 200:  # successful client-server exchange
                     try:
                         sign_ = response.json()['message']['body']['data']['sign']
                     except KeyError:  # server returned non-encrypted data
                         result = 'failure'
                         content = response.json()['message']['body']['data']['content']
-                        print(content)
+                        print(content)  # todo: used for troubleshooting. remove later
                         cur.execute("INSERT INTO heartbeat_monitor VALUES (NULL,?,?,datetime(CURRENT_TIMESTAMP,"
                                     "'localtime'))", (content, result))
                         conn.commit()
@@ -107,7 +103,7 @@ class HeartBeat(threading.Thread):
                     else:
                         encrypted_content = response.json()['message']['body']['data']['content']
                         md5 = encrypt.content_sign(encrypted_content.encode())
-                        if md5.decode() == sign_:
+                        if md5.decode() == sign_:  # content is correct
                             result = 'success'
                             _key = response.json()['message']['body']['data']['key']
                             decrypted_content = encrypt.response_decrypt(_key, encrypted_content)
@@ -116,17 +112,16 @@ class HeartBeat(threading.Thread):
                             conn.commit()
                             command_len = len(decrypted_content['commands'])
                             if command_len > 0:  # response data contains command instructions
-                                for _ in range(command_len):
-                                    cur.execute("INSERT INTO books VALUES")
+                                for command in decrypted_content['commands']:
+                                    if command['command'] == 'INFO-MODI-R':
+                                        prep_data.server_exchange('INFO-MODI-R', prep_data.id)
+                                    else:
+                                        pass
 
                         else:
-                            print('MD5 mismatch, decryption aborted!')  # change to logging
+                            print('MD5 mismatch, decryption aborted!')  # todo: change to logging later
                             pass
                 else:
                     pass
             cur.close()
             time.sleep(self.interval)
-
-#
-g = HeartBeat()
-time.sleep(20)
