@@ -52,6 +52,11 @@ create_inv_invent_table = """CREATE TABLE IF NOT EXISTS invoice_invent (
 class BusId:
 
     def __init__(self):
+        """Contains methods that handles and processes client-server exchange.
+        format_data method takes in inputs and produces a corresponding json data to be used in client-server exchange.
+        server_exchange method handles all client-server exchange.
+        content_proc method processes server response and takes actions depending based on the bus_id.
+        """
 
         self.id = {"id": "531030026147"}
 
@@ -59,7 +64,7 @@ class BusId:
             try:
                 self.conn = sqlite3.connect('fiscal.db')
                 cur = self.conn.cursor()
-                cur.execute(create_log_table)  # create a log table is not exist on start-up
+                cur.execute(create_log_table)  # create a log table if not exist on start-up
                 self.conn.commit()
                 # cur.execute(create_inv_rec_table)
                 # self.conn.commit()
@@ -68,7 +73,7 @@ class BusId:
                 cur.close()
                 break
             except Error as e:
-                print(e)  # change to logging
+                print(e)  # todo: change to logging
                 time.sleep(3)
                 continue
 
@@ -76,8 +81,7 @@ class BusId:
             self.data = pickle.load(file)
 
     def format_data(self, bus_id, content, sign, _key):
-        """
-        Returns json data for communication with the server
+        """Returns json data for communication with the server.
         bus_id: business ID; type:str
         content: DES encrypted business data
         sign: MD5 sign of content
@@ -91,11 +95,12 @@ class BusId:
         return self.data
 
     def server_exchange(self, bus_id, raw_content):
-        """
-        handles all exchanges with the server.
-        bus_id: business ID for the exchange
+        """handles all exchanges with the server. the response from the server is decrypted, the content_proc method
+        is then called to process the decrypted content
+        bus_id: business ID for the server exchange
         raw_content: unencrypted business data
         """
+
         content = enc.encrypted_content(raw_content)  # encrypts content
         sign = enc.content_sign(content.encode())  # returns MD5 sign of encrypted content
         if bus_id == 'R-R-01':
@@ -108,13 +113,13 @@ class BusId:
                                      json=request_data,
                                      headers=HEADERS)
         except HTTPError as http_e:
-            print(f'HTTP error occurred: {http_e}')  # change to logging later
+            print(f'HTTP error occurred: {http_e}')  # todo: change to logging later
             pass
         except Exception as err:
-            print(f'Other error occurred: {err}')  # change to logging later
+            print(f'Other error occurred: {err}')  # todo: change to logging later
             pass
         else:
-            if response and response.status_code == 200:  # 200 is success code for http exchange
+            if response and response.status_code == 200:  # server successfully responded
                 try:
                     sign_ = response.json()['message']['body']['data']['sign']
                 except KeyError:  # server returned non-encrypted data
@@ -142,12 +147,17 @@ class BusId:
                                     "'localtime'))", (request_data, bus_id, decrypted_content, result))
                         self.conn.commit()
                         cur.close()
+                        self.content_proc(bus_id, decrypted_content)  # call the content_proc method to further
+                        # process the received data
                     else:
-                        pass  # add logging here to indicate md5 mismatch
+                        pass  # todo: add logging here to indicate md5 mismatch
+            else:  # server haven't responded in an expected manner
+                print('a server error occurred')  # todo: change to logging later
+                pass 
 
     def content_proc(self, bus_id, data):
-        """
-        Processes decrypted server response
+        """Processes decrypted server response. This method handles different data input according to the bus_id and
+        its corresponding business requirement.
         data: decrypted content from server response. type: dict
         bus_id: business ID from decrypted data. type: str
         """
@@ -184,7 +194,7 @@ class BusId:
 
         if bus_id == 'INFO-MODI-R':
             if data['code'] == 200:
-                with open('tax_info', 'w+') as tax_file:  # open and overwrite existing data
+                with open('tax_info', 'w+') as tax_file:  # open and overwrite existing data if any
                     pickle.dump(data, tax_file)
             else:
                 time.sleep(3)
@@ -226,6 +236,8 @@ class BusId:
 
                         pass  # add logging here
 
-            else:
-                time.sleep(3)
-                self.server_exchange(bus_id, self.id)
+            else:  # server returned an error code
+                # add logging
+                pass
+                # time.sleep(3)
+                # self.server_exchange(bus_id, self.id)
