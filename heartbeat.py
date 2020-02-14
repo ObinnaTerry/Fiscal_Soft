@@ -114,7 +114,7 @@ class HeartBeat(threading.Thread):
                             if command_len > 0:  # response data contains command instructions
                                 for command in decrypted_content['commands']:
                                     if command['command'] == 'INFO-MODI-R':
-                                        prep_data.server_exchange('INFO-MODI-R', prep_data.id)
+                                        prep_data.server_exchange('INFO-MODI-R', b_data)
                                     else:
                                         pass
 
@@ -122,6 +122,7 @@ class HeartBeat(threading.Thread):
                             print('MD5 mismatch, decryption aborted!')  # todo: change to logging later
                             pass
                 else:
+                    print('A server error occurred')  # todo: change to logging later
                     pass
             cur.close()
             time.sleep(self.interval)
