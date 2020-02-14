@@ -153,7 +153,7 @@ class BusId:
                         pass  # todo: add logging here to indicate md5 mismatch
             else:  # server haven't responded in an expected manner
                 print('a server error occurred')  # todo: change to logging later
-                pass 
+                pass
 
     def content_proc(self, bus_id, data):
         """Processes decrypted server response. This method handles different data input according to the bus_id and
@@ -161,6 +161,7 @@ class BusId:
         data: decrypted content from server response. type: dict
         bus_id: business ID from decrypted data. type: str
         """
+
         if bus_id == 'R-R-01':
             if data['code'] == 200:  # private key successfully obtained
                 secret = data['secret']
@@ -234,10 +235,10 @@ class BusId:
                         else:  # some other type of error occurred
                             pass
 
-                        pass  # add logging here
+                        pass  # todo: change to logging later
 
             else:  # server returned an error code
-                # add logging
+                # todo: change to logging later
                 pass
                 # time.sleep(3)
                 # self.server_exchange(bus_id, self.id)
