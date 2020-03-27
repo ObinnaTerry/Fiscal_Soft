@@ -129,3 +129,21 @@ def read_db_config(filename='config.ini', section='mysql'):
         raise Exception('{0} not found in the {1} file'.format(section, filename))
 
     return db_cred
+
+
+def format_data(bus_id, content, sign, _key):
+    """Returns json data for communication with the server.
+    bus_id: business ID; type:str
+    content: DES encrypted business data
+    sign: MD5 sign of content
+    _key: RSA encrypted 8-byte key
+    """
+
+    with open('content_data.json', 'r') as file:  # load pickle file containing data structure
+        data = json.loads(file.read())
+
+    data['message']['body']['data']['sign'] = sign
+    data['message']['body']['data']['key'] = _key
+    data['message']['body']['data']['content'] = content
+    data['message']['body']['data']['bus_id'] = bus_id
+    return data
