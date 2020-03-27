@@ -5,7 +5,7 @@ import requests
 from requests.exceptions import HTTPError
 from mysql.connector import MySQLConnection, Error
 
-from zra_ims._encrypt import DataEnc, read_db_config, key
+from zra_ims._encrypt import DataEnc, read_db_config, key, format_data
 
 HEADERS = {
     'Content-Length': '1300',
@@ -17,7 +17,6 @@ db_config = read_db_config()
 
 
 def invoice_range_insert(invoice_code, start_num, end_num, total, create_time):
-
     global conn
     global cursor
 
@@ -55,23 +54,6 @@ class SetUp:
 
         self.id = {"id": "531030026147"}
 
-        with open('content_data.json', 'r') as file:  # load pickle file containing data structure
-            self.data = json.loads(file.read())
-
-    def format_data(self, bus_id, content, sign, _key):
-        """Returns json data for communication with the server.
-        bus_id: business ID; type:str
-        content: DES encrypted business data
-        sign: MD5 sign of content
-        _key: RSA encrypted 8-byte key
-        """
-
-        self.data['message']['body']['data']['sign'] = sign
-        self.data['message']['body']['data']['key'] = _key
-        self.data['message']['body']['data']['content'] = content
-        self.data['message']['body']['data']['bus_id'] = bus_id
-        return self.data
-
     def server_exchange(self, bus_id, raw_content):
         """handles all exchanges with the server. the response from the server is decrypted, the content_proc method
         is then called to process the decrypted content
@@ -82,10 +64,10 @@ class SetUp:
         content = enc.encrypted_content(raw_content)  # encrypts content
         sign = enc.content_sign(content.encode())  # returns MD5 sign of encrypted content
         if bus_id == 'R-R-01':
-            _key = ''
+            send_key = ''
         else:
-            _key = enc.content_key(key)  # returns RSA encrypted key
-        request_data = self.format_data(bus_id, content, sign, _key)
+            send_key = enc.content_key(key)  # returns RSA encrypted key
+        request_data = format_data(bus_id, content, sign, send_key)
         try:
             response = requests.post('http://41.72.108.82:8097/iface/index',
                                      json=request_data,
@@ -162,14 +144,18 @@ class SetUp:
 
 
 if __name__ == '__main__':
+
+    pri_key_data = {"license": "531030026147", "sn": "187603000010", "sw_version": "1.2", "model": "IP-100",
+                    "manufacture": "Inspur", "imei": "359833002198832", "os": "linux2.6.36", "hw_sn": "3458392322"}
+
     exchange_list = ['R-R-01', 'R-R-02', 'R-R-03', 'INVOICE-APP-R']
 
     setup = SetUp()
 
     for code in exchange_list:
         if code == 'R-R-01':
-            result = setup.server_exchange(code, setup.data)
+            result = setup.server_exchange(code, pri_key_data)
             if result == -1:
                 print('Pri-key app failed. Aborted!')
             break  # no need to try the other 2 codes without a pri-key
-        setup.server_exchange(code, setup.data)
+        setup.server_exchange(code, setup.id)
