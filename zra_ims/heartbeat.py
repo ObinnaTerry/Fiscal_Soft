@@ -5,8 +5,7 @@ from mysql.connector import MySQLConnection, Error
 import requests
 from requests.exceptions import HTTPError
 
-from zra_ims._encrypt import DataEnc, read_db_config, key
-from zra_ims.bus_id import BusId
+from zra_ims._encrypt import DataEnc, read_db_config, key, format_data
 
 encrypt = DataEnc()
 
@@ -22,8 +21,7 @@ HEADERS = {
     'Content-Type': 'application/json',
 }
 
-prep_data = BusId()
-request_data = prep_data.format_data("MONITOR-R", b_data_des, sign, key_)
+request_data = format_data("MONITOR-R", b_data_des, sign, key_)
 
 db_config = read_db_config()
 
