@@ -1,9 +1,11 @@
 import json
+from datetime import datetime
 
 import requests
 from requests.exceptions import HTTPError
+from mysql.connector import MySQLConnection, Error
 
-from zra_ims._encrypt import DataEnc, key
+from zra_ims._encrypt import DataEnc, read_db_config, key
 
 HEADERS = {
     'Content-Length': '1300',
@@ -11,6 +13,35 @@ HEADERS = {
 }
 
 enc = DataEnc()
+db_config = read_db_config()
+
+
+def invoice_range_insert(invoice_code, start_num, end_num, total, create_time):
+
+    global conn
+    global cursor
+
+    query = "INSERT INTO invoice_range(invoice_code, start_num, end_num, total, create_time) VALUES(%s,%s,%s,%s,%s) "
+    args = (invoice_code, start_num, end_num, total, create_time)
+
+    try:
+        conn = MySQLConnection(**db_config)
+        cursor = conn.cursor()
+        cursor.execute(query, args)
+
+        if cursor.lastrowid:
+            print('last insert id', cursor.lastrowid)  # todo: change to logging
+        else:
+            print('last insert id not found')  # todo: change to logging
+
+        conn.commit()
+    except Error as error:
+        conn.rollback()
+        print(error)  # todo: change to logging
+
+    finally:
+        cursor.close()
+        conn.close()
 
 
 class SetUp:
@@ -116,9 +147,22 @@ class SetUp:
             else:  # initialization failed
                 raise Exception('Initialization failure: ', data)
 
+        if bus_id == 'INVOICE-APP-R':
+            if data['code'] == 200:
+                invoice = data['invoice']
+                for invoice_range in invoice:
+                    invoice_code = invoice_range['code']
+                    start_num = invoice_range['number-begin']
+                    end_num = invoice_range['number-end']
+                    total = int(end_num) - int(start_num) + 1
+
+                    invoice_range_insert(invoice_code, start_num, end_num, total, datetime.now())
+            else:
+                raise Exception('Invoice range APP failure: ', data)
+
 
 if __name__ == '__main__':
-    exchange_list = ['R-R-01', 'R-R-02', 'R-R-03']
+    exchange_list = ['R-R-01', 'R-R-02', 'R-R-03', 'INVOICE-APP-R']
 
     setup = SetUp()
 
