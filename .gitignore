@@ -9,4 +9,4 @@ private_key.pem
 /DataBase.py
 /fiscal.db
 /email-creds.cfg
-/config.ini
+/zra_ims/config.ini
