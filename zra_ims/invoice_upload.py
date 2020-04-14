@@ -1,22 +1,32 @@
 import time
 import concurrent.futures
+import logging
+import logging.config
 
 from mysql.connector import MySQLConnection, Error
 import requests
 from requests.exceptions import HTTPError
 
 from zra_ims._encrypt import read_db_config, DataEnc, key, format_data
+from zra_ims.heartbeat import HeartBeat
 
+heartbeat = HeartBeat()  # start background heartbeat monitor process
 enc = DataEnc()
+
+logging.config.fileConfig(fname='file.ini', disable_existing_loggers=False)
+
+logger = logging.getLogger(__name__)
 
 
 def query_invoice():
     try:
 
-        query = """SELECT upload_id, 
+        query = """SELECT upload_id,
+                    invoice_num, 
                     invoice_encrypted 
-                    FROM invoice_range 
-                    where upload_flag = 0"""
+                    FROM invoice_upload 
+                    WHERE upload_flag = 0
+                    LIMIT 50"""
 
         dbconfig = read_db_config()
         conn = MySQLConnection(**dbconfig)
@@ -26,8 +36,8 @@ def query_invoice():
 
         return rows
 
-    except Error as e:
-        print(e)
+    except Error:
+        logging.exception("dB query error")
 
     finally:
         cursor.close()
@@ -39,7 +49,7 @@ def upload(content):
         'Content-Length': '1300',
         'Content-Type': 'application/json',
     }
-    content = content[1]
+    content = content[2]  # index 2 contains encrypted content
     sign = enc.content_sign(content.encode())  # returns MD5 sign of encrypted content
     send_key = enc.content_key(key)  # returns RSA encrypted key
     request_data = format_data("INVOICE-REPORT-R", content, sign, send_key)
@@ -47,26 +57,29 @@ def upload(content):
         response = requests.post('http://41.72.108.82:8097/iface/index',
                                  json=request_data,
                                  headers=HEADERS)
-    except HTTPError as http_e:
-        print(f'HTTP error occurred: {http_e}')  # todo: change to logging later
+    except HTTPError:
+        logger.exception("Exception occurred")
         raise
-    except Exception as err:
-        print(f'Other error occurred: {err}')  # todo: change to logging later
+    except Exception:
+        logger.exception("Exception occurred")
         raise
     else:
         if response and response.status_code == 200:  # successful client-server exchange
             return response.json()
         else:
+            logging.info(f"invoice number{content[1]}: encountered server error. None 200 code returned")
             raise Exception('None 200 code returned')
 
 
-def decrypt_response(response):
+def decrypt_response(response, invoice_num):
     try:
         sign_ = response.json()['message']['body']['data']['sign']
     except KeyError:  # server returned non-encrypted data
         content = response.json()['message']['body']['data']['content']
+        logging.warning(f"invoice number{invoice_num}: upload failure\n"
+                        f"server response: {content}")
         print(content)  # todo: used for troubleshooting. remove later
-        return response, 2
+        return response, 2  # 2 signifies unsuccessful upload in the invoice_upload dB table
     else:
         encrypted_content = response.json()['message']['body']['data']['content']
         md5 = enc.content_sign(encrypted_content.encode())
@@ -74,12 +87,14 @@ def decrypt_response(response):
         if md5.decode() == sign_:  # content is correct
             _key = response.json()['message']['body']['data']['key']
             decrypted_content = enc.response_decrypt(_key, encrypted_content)
-            return decrypted_content, 1
+            logging.info(f"invoice number{invoice_num}: upload successful --- {decrypted_content}")
+            return decrypted_content, 1  # 1 signifies successful upload in the invoice_upload dB table
+        logging.warning(f"invoice number{invoice_num}: upload failure\n"
+                        f"MD5 mismatch! expected {md5}, got {sign_}")
         return 'MD5 mismatch', 2
 
 
-def upload_update(response, upload_flag, upload_id):
-
+def upload_update(response, upload_flag, upload_id, invoice_num):
     db_config = read_db_config()
 
     # prepare query and data
@@ -100,8 +115,8 @@ def upload_update(response, upload_flag, upload_id):
         # accept the changes
         conn.commit()
 
-    except Error as error:
-        print(error)  # todo: logging
+    except Error:
+        logging.exception(f"dB update error for invoice number: {invoice_num}")
 
     finally:
         cursor.close()
@@ -109,8 +124,7 @@ def upload_update(response, upload_flag, upload_id):
 
 
 def main():
-    result = []  # contains results from completed exchange with server
-    result_ex = []  # contains results from exchanges that resulted in an exception
+
     while True:
         upload_list = query_invoice()
 
@@ -123,19 +137,17 @@ def main():
             print(len(future_to_url))
             for future in concurrent.futures.as_completed(future_to_url):
                 upload_id = future_to_url[future][0]
+                invoice_num = future_to_url[future][1]
                 try:
                     data = future.result()
                 except Exception as exc:
-                    result_ex.append((upload_id, exc))
                     print('%r generated an exception: %s' % (upload_id, exc))  # todo: remove later
                 else:
-                    decrypted_res = decrypt_response(data)
+                    decrypted_res = decrypt_response(data, invoice_num)
                     response, upload_flag = decrypted_res
-                    upload_update(response, upload_flag, upload_id)
-                    result.append((upload_id, decrypted_res))
+                    upload_update(response, upload_flag, upload_id, invoice_num)
                     print('%r page is %d bytes' % (upload_id, data))  # todo: remove later
 
-        #  call another function to handle result analysis and db insertion
         if len(upload_list) < 25:
             time.sleep(900)
 
