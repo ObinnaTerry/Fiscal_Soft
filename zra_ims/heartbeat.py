@@ -1,5 +1,6 @@
 import threading
 import time
+import logging
 
 from mysql.connector import MySQLConnection, Error
 import requests
@@ -9,10 +10,10 @@ from zra_ims._encrypt import DataEnc, read_db_config, key, format_data
 
 encrypt = DataEnc()
 
+log = logging.getLogger(__name__)
+
 b_data = {"id": "531030026147", "lon": 100.832004, "lat": 45.832004, "sw_version": "1.2"}
-
 b_data_des = encrypt.encrypted_content(b_data)
-
 sign = encrypt.content_sign(b_data_des.encode())
 key_ = encrypt.content_key(key)
 
@@ -22,12 +23,12 @@ HEADERS = {
 }
 
 request_data = format_data("MONITOR-R", b_data_des, sign, key_)
-
 db_config = read_db_config()
 
 
 def insert_heartbeat(request, bus_id, response_encrypted, response_decrypted, result, log_time):
     """ Insert values to the heartbeat_monitor table.
+
     :param request: encrypted request data
     :param bus_id:
     :param response_encrypted: encrypted response data
@@ -50,14 +51,14 @@ def insert_heartbeat(request, bus_id, response_encrypted, response_decrypted, re
         cursor.execute(query, args)
 
         if cursor.lastrowid:
-            print('last insert id', cursor.lastrowid)  # todo: change to logging
+            log.info('last insert id', cursor.lastrowid)
         else:
-            print('last insert id not found')  # todo: change to logging
+            pass
 
         conn.commit()
     except Error as error:
         conn.rollback()
-        print(error)  # todo: change to logging
+        log.exception("Exception occurred")
 
     finally:
         cursor.close()
@@ -83,7 +84,7 @@ class HeartBeat(threading.Thread):
         print(thread.getName())  # todo: used for debugging. remove later
 
     def run(self):
-        """ Method that runs in the background and handles sending of monitoring signal to the server and processing
+        """ Background method for sending of monitoring signal to the server and processing
         of server response
         """
 
@@ -94,11 +95,11 @@ class HeartBeat(threading.Thread):
                 response = requests.post('http://41.72.108.82:8097/iface/index',
                                          json=request_data,
                                          headers=HEADERS)
-            except HTTPError as http_e:
-                print(f'HTTP error occurred: {http_e}')  # todo: change to logging later
+            except HTTPError:
+                log.exception("Exception occurred")
                 pass
-            except Exception as err:
-                print(f'Other error occurred: {err}')  # todo: change to logging later
+            except Exception:
+                log.exception("Exception occurred")
                 pass
             else:
                 if response and response.status_code == 200:  # successful client-server exchange
@@ -129,10 +130,10 @@ class HeartBeat(threading.Thread):
                             #             pass
 
                         else:
-                            print('MD5 mismatch, decryption aborted!')  # todo: change to logging later
+                            log.warning('MD5 mismatch, decryption aborted!')
                             pass
                 else:
-                    print('A server error occurred')  # todo: change to logging later
+                    log.error('A server error occurred')
                     pass
 
             time.sleep(self.interval)
