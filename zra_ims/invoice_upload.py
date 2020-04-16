@@ -13,7 +13,7 @@ from zra_ims.heartbeat import HeartBeat
 heartbeat = HeartBeat()  # start background heartbeat monitor process
 enc = DataEnc()
 
-logging.config.fileConfig(fname='file.ini', disable_existing_loggers=False)
+logging.config.fileConfig(fname='logging.ini', disable_existing_loggers=False)
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ def query_invoice():
         return rows
 
     except Error:
-        logging.exception("dB query error")
+        logger.exception("dB query error")
 
     finally:
         cursor.close()
@@ -67,7 +67,7 @@ def upload(content):
         if response and response.status_code == 200:  # successful client-server exchange
             return response.json()
         else:
-            logging.info(f"invoice number{content[1]}: encountered server error. None 200 code returned")
+            logger.info(f"invoice number{content[1]}: encountered server error. None 200 code returned")
             raise Exception('None 200 code returned')
 
 
@@ -76,8 +76,8 @@ def decrypt_response(response, invoice_num):
         sign_ = response.json()['message']['body']['data']['sign']
     except KeyError:  # server returned non-encrypted data
         content = response.json()['message']['body']['data']['content']
-        logging.warning(f"invoice number{invoice_num}: upload failure\n"
-                        f"server response: {content}")
+        logger.warning(f"invoice number{invoice_num}: upload failure\n"
+                       f"server response: {content}")
         print(content)  # todo: used for troubleshooting. remove later
         return response, 2  # 2 signifies unsuccessful upload in the invoice_upload dB table
     else:
@@ -87,9 +87,9 @@ def decrypt_response(response, invoice_num):
         if md5.decode() == sign_:  # content is correct
             _key = response.json()['message']['body']['data']['key']
             decrypted_content = enc.response_decrypt(_key, encrypted_content)
-            logging.info(f"invoice number{invoice_num}: upload successful --- {decrypted_content}")
+            logger.info(f"invoice number{invoice_num}: upload successful --- {decrypted_content}")
             return decrypted_content, 1  # 1 signifies successful upload in the invoice_upload dB table
-        logging.warning(f"invoice number{invoice_num}: upload failure\n"
+        logger.warning(f"invoice number{invoice_num}: upload failure\n"
                         f"MD5 mismatch! expected {md5}, got {sign_}")
         return 'MD5 mismatch', 2
 
@@ -116,7 +116,7 @@ def upload_update(response, upload_flag, upload_id, invoice_num):
         conn.commit()
 
     except Error:
-        logging.exception(f"dB update error for invoice number: {invoice_num}")
+        logger.exception(f"dB update error for invoice number: {invoice_num}")
 
     finally:
         cursor.close()
@@ -124,7 +124,6 @@ def upload_update(response, upload_flag, upload_id, invoice_num):
 
 
 def main():
-
     while True:
         upload_list = query_invoice()
 
