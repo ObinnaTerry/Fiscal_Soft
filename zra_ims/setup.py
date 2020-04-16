@@ -16,12 +16,17 @@ enc = DataEnc()
 db_config = read_db_config()
 
 
-def invoice_range_insert(invoice_code, start_num, end_num, total, create_time):
+def invoice_range_insert(invoice_code, start_num, end_num, total, use_flag, create_time):
     global conn
     global cursor
 
     query = "INSERT INTO invoice_range(invoice_code, start_num, end_num, total, create_time) VALUES(%s,%s,%s,%s,%s) "
-    args = (invoice_code, start_num, end_num, total, create_time)
+    args = (invoice_code, start_num, end_num, total, use_flag, create_time)
+
+    # use_flag:
+    # 0 - unused
+    # 1 - in use
+    # 2 - used
 
     try:
         conn = MySQLConnection(**db_config)
@@ -138,7 +143,8 @@ class SetUp:
                     end_num = invoice_range['number-end']
                     total = int(end_num) - int(start_num) + 1
 
-                    invoice_range_insert(invoice_code, start_num, end_num, total, datetime.now())
+                    invoice_range_insert(invoice_code, start_num, end_num, total, 1, datetime.now())
+                    # set use flag to 1: inuse. The first invoice range will be used immediately
             else:
                 raise Exception('Invoice range APP failure: ', data)
 
