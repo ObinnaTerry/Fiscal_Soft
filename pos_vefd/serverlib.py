@@ -4,7 +4,6 @@ import logging
 
 from redis.sentinel import Sentinel
 
-
 log = logging.getLogger(__name__)
 
 
@@ -107,16 +106,21 @@ class Message:
         self.request = json.loads(self._recv_buffer)
         self._set_selector_events_mask("w")
 
-    def create_response(self):  # todo: redis related data handling
-        sentinel_ip = ''
-        try:
-            sentinel = Sentinel([(sentinel_ip, 26379)], socket_timeout=0.1)
-        except:
-            log.exception("error occurred trying to reach sentinel")
+    def create_response(self):
+
+        if int.from_bytes(self.header[2], byteorder='big') == 1:
+            self._send_buffer += "Server is online".encode()
         else:
-            master = sentinel.master_for('mymaster', socket_timeout=0.1)
-            invoice_number = master.rpop()
-            self._send_buffer += invoice_number
+            sentinel_ip = ''  # IP address of the server running the redis-sentinel
+            try:
+                sentinel = Sentinel([(sentinel_ip, 26379)], socket_timeout=0.1)
+            except:
+                log.exception("error occurred trying to reach sentinel")
+            else:
+                master = sentinel.master_for('mymaster', socket_timeout=0.1)
+                invoice_number = master.rpop().decode()
+                content = {"invoice_number": invoice_number}
+                self._send_buffer += json.dumps(content).encode()
 
     def create_error_response(self, error):  # todo: create error response and append to the send buffer
         # do create error message
@@ -143,13 +147,29 @@ class Message:
             self.create_response()
         self._write()
 
+    # def create_payload(self):
+    #     header_1 = bytes([26])  # header 1
+    #     header_2 = bytes([93])  # header 2
+    #     cmdID = (bytes([3]) if (self.error is True or self.crc_error is True) else
+    #              bytes([1]) if (int.from_bytes(self.header[2], byteorder='big') == 1) else
+    #              bytes([2]))
+
+    @staticmethod
+    def get_content_length(content: bytes):
+        """
+        :param content: data whose length needs to be calculated
+        :return: length of input data
+        """
+        length_content = len(content)
+        return length_content.to_bytes(4, byteorder='big')  # convert length of content to bytes
+
     def _write(self):
 
         if self._send_buffer:
-            print("sending", repr(self._send_buffer), "to", self.addr)  # todo: logging
             try:
                 # Should be ready to write
                 sent = self.sock.sendall(self._send_buffer)
+                log.info("sent", repr(self._send_buffer), "to", self.addr)
             except BlockingIOError:
                 # Resource temporarily unavailable (errno EWOULDBLOCK)
                 pass
@@ -161,7 +181,7 @@ class Message:
 
     def close(self):
 
-        print("closing connection to", self.addr)  # todo: logging
+        log.info("closing connection to", self.addr)
         try:
             self.selector.unregister(self.sock)
         except Exception as e:
