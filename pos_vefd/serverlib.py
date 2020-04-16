@@ -1,5 +1,9 @@
 import selectors
 import json
+from configparser import ConfigParser
+
+from redis.sentinel import Sentinel
+from mysql.connector import MySQLConnection, Error
 
 
 class Message:
@@ -102,21 +106,25 @@ class Message:
         self._set_selector_events_mask("w")
 
     def create_response(self):  # todo: redis related data handling
-        # create response
-        self.response_created = True
-        pass
+        sentinel_ip = ''
+        sentinel = Sentinel([(sentinel_ip, 26379)], socket_timeout=0.1)
+        master = sentinel.master_for('mymaster', socket_timeout=0.1)
+        invoice_number = master.rpop()
+        self._send_buffer += invoice_number
 
     def create_error_response(self, error):  # todo: create error response and append to the send buffer
         # do create error message
+
         self.response_created = True
         pass
 
     def error_check(self):
         if int.from_bytes(self.header[0], byteorder='big') != 26:
             self.error = 'hearder_one'
-        if int.from_bytes(self.header[1], byteorder='big') != 93:
+        elif int.from_bytes(self.header[1], byteorder='big') != 93:
             self.error = 'hearder_two'
-        if int.from_bytes(self.header[2], byteorder='big') != 1 or int.from_bytes(self.header[2], byteorder='big') != 2:
+        elif int.from_bytes(self.header[2], byteorder='big') != 1 or int.from_bytes(self.header[2],
+                                                                                    byteorder='big') != 2:
             self.error = 'cmid'
 
     def write(self):
