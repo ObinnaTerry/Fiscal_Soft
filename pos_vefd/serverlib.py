@@ -147,12 +147,20 @@ class Message:
             self.create_response()
         self._write()
 
-    # def create_payload(self):
-    #     header_1 = bytes([26])  # header 1
-    #     header_2 = bytes([93])  # header 2
-    #     cmdID = (bytes([3]) if (self.error is True or self.crc_error is True) else
-    #              bytes([1]) if (int.from_bytes(self.header[2], byteorder='big') == 1) else
-    #              bytes([2]))
+    def create_payload(self):
+        header_1 = bytes([26])  # header 1
+        header_2 = bytes([93])  # header 2
+        cmdID = (bytes([3]) if (self.error is True or self.crc_error is True) else
+                 bytes([1]) if (int.from_bytes(self.header[2], byteorder='big') == 1) else
+                 bytes([2]))
+        content_length = self.get_content_length(self._send_buffer)
+        crc_send = self.get_crc(header_1
+                                + header_2
+                                + cmdID
+                                + content_length
+                                + self._send_buffer).to_bytes(2, byteorder='big')  # calculate CRC and convert to bytes
+        payload = header_1 + header_2 + cmdID + content_length + self._send_buffer + crc_send
+        return payload
 
     @staticmethod
     def get_content_length(content: bytes):
