@@ -1,7 +1,11 @@
 import selectors
 import json
+import logging
 
 from redis.sentinel import Sentinel
+
+
+log = logging.getLogger(__name__)
 
 
 class Message:
@@ -105,10 +109,14 @@ class Message:
 
     def create_response(self):  # todo: redis related data handling
         sentinel_ip = ''
-        sentinel = Sentinel([(sentinel_ip, 26379)], socket_timeout=0.1)
-        master = sentinel.master_for('mymaster', socket_timeout=0.1)
-        invoice_number = master.rpop()
-        self._send_buffer += invoice_number
+        try:
+            sentinel = Sentinel([(sentinel_ip, 26379)], socket_timeout=0.1)
+        except:
+            log.exception("error occurred trying to reach sentinel")
+        else:
+            master = sentinel.master_for('mymaster', socket_timeout=0.1)
+            invoice_number = master.rpop()
+            self._send_buffer += invoice_number
 
     def create_error_response(self, error):  # todo: create error response and append to the send buffer
         # do create error message
