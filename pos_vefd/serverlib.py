@@ -1,9 +1,7 @@
 import selectors
 import json
-from configparser import ConfigParser
 
 from redis.sentinel import Sentinel
-from mysql.connector import MySQLConnection, Error
 
 
 class Message:
