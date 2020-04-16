@@ -21,7 +21,7 @@ class Message:
         self.header = None
         self.request = None
         self.crc = None
-        self.response_created = False
+        # self.response_created = False
 
     def process_events(self, mask):
 
@@ -109,7 +109,7 @@ class Message:
     def create_response(self):
 
         if int.from_bytes(self.header[2], byteorder='big') == 1:
-            self._send_buffer += "Server is online".encode()
+            self._send_buffer += json.loads("Server is online").encode()
         else:
             sentinel_ip = ''  # IP address of the server running the redis-sentinel
             try:
@@ -124,18 +124,23 @@ class Message:
 
     def create_error_response(self, error):  # todo: create error response and append to the send buffer
         # do create error message
-
-        self.response_created = True
-        pass
+        if self.error == 1:
+            self._send_buffer += json.dumps("error: header one").encode()
+        elif self.error == 2:
+            self._send_buffer += json.dumps("error: header two").encode()
+        elif self.error == 3:
+            self._send_buffer += json.dumps("error: cmdID").encode()
+        else:
+            self._send_buffer += json.dumps("error: crc incorrect").encode()
 
     def error_check(self):
         if int.from_bytes(self.header[0], byteorder='big') != 26:
-            self.error = 'hearder_one'
+            self.error = 1
         elif int.from_bytes(self.header[1], byteorder='big') != 93:
-            self.error = 'hearder_two'
+            self.error = 2
         elif int.from_bytes(self.header[2], byteorder='big') != 1 or int.from_bytes(self.header[2],
                                                                                     byteorder='big') != 2:
-            self.error = 'cmid'
+            self.error = 3
 
     def write(self):
         self.error_check()
@@ -176,7 +181,8 @@ class Message:
         if self._send_buffer:
             try:
                 # Should be ready to write
-                sent = self.sock.sendall(self._send_buffer)
+                payload = self.create_payload()
+                sent = self.sock.sendall(payload)
                 log.info("sent", repr(self._send_buffer), "to", self.addr)
             except BlockingIOError:
                 # Resource temporarily unavailable (errno EWOULDBLOCK)
@@ -193,17 +199,17 @@ class Message:
         try:
             self.selector.unregister(self.sock)
         except Exception as e:
-            print(
+            log.warning(
                 f"error: selector.unregister() exception for",
                 f"{self.addr}: {repr(e)}",
-            )  # todo: logging
+            )
         try:
             self.sock.close()
         except OSError as e:
-            print(
+            log.warning(
                 f"error: socket.close() exception for",
                 f"{self.addr}: {repr(e)}",
-            )  # todo: logging
+            )
         finally:
             # Delete reference to socket object for garbage collection
             self.sock = None
