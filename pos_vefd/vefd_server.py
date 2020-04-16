@@ -1,18 +1,23 @@
 import socket
 import selectors
 import sys
-import traceback
+import logging
+import logging.config
 
-import libserver
+from pos_vefd import serverlib
 
 sel = selectors.DefaultSelector()
+
+logging.config.fileConfig(fname='file.ini', disable_existing_loggers=False)
+
+logger = logging.getLogger(__name__)
 
 
 def accept_wrapper(sock):
     conn, addr = sock.accept()  # Should be ready to read
-    print("accepted connection from", addr)  # todo: logging
+    logger.info("accepted connection from", addr)
     conn.setblocking(False)
-    message = libserver.Message(sel, conn, addr)
+    message = serverlib.Message(sel, conn, addr)
     sel.register(conn, selectors.EVENT_READ, data=message)
 
 
@@ -23,7 +28,7 @@ lsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 lsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 lsock.bind((host, port))
 lsock.listen()
-print("listening on", (host, port))  # todo: change logging
+logger.info("listening on", (host, port))
 lsock.setblocking(False)
 sel.register(lsock, selectors.EVENT_READ, data=None)
 
@@ -39,9 +44,9 @@ def main():
                 try:
                     message.process_events(mask)
                 except Exception:
-                    print(
+                    logger.exception(
                         "main: error: exception for",
-                        f"{message.addr}:\n{traceback.format_exc()}",
+                        f"{message.addr}",
                     )
                     message.close()
 
