@@ -12,7 +12,7 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import padding
 
-key = bytes([9, 6, 5, 9, 6, 0, 3, 3])
+key = bytes([8, 5, 4, 1, 6, 6, 3, 4])
 
 
 class DataEnc:
@@ -52,8 +52,7 @@ class DataEnc:
 
     @staticmethod
     def des_decrypt(d_key, message):
-        """
-        Decrypts DES encrypted data.
+        """Decrypts DES encrypted data.
         input: d_key: 8-byte key; message: base64 encoded string
         output: decrypted message
         """
@@ -139,7 +138,7 @@ def format_data(bus_id, content, sign, _key):
     _key: RSA encrypted 8-byte key
     """
 
-    with open('content_data.json', 'r') as file:  # load pickle file containing data structure
+    with open('content_data.json', 'r') as file:  # load json file containing data structure
         data = json.loads(file.read())
 
     data['message']['body']['data']['sign'] = sign
