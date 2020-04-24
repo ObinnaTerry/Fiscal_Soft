@@ -4,6 +4,8 @@ import logging
 
 from redis.sentinel import Sentinel
 
+from pos_vefd import redis_handle
+
 log = logging.getLogger(__name__)
 
 
@@ -118,8 +120,14 @@ class Message:
                 log.exception("error occurred trying to reach sentinel")
             else:
                 master = sentinel.master_for('mymaster', socket_timeout=0.1)
-                invoice_number = master.rpop().decode()
-                content = {"invoice_number": invoice_number}
+                invoice = master.rpop('invoices').decode()
+                if invoice is None:
+                    redis_handle.RedisInsert()
+                    while invoice is None:
+                        invoice = master.rpop().decode()
+                invoice_code = invoice.split('_')[0]
+                invoice_number = invoice.split('_')[1]
+                content = {"invoice_code": invoice_code, "invoice_number": invoice_number}
                 self._send_buffer += json.dumps(content).encode()
 
     def create_error_response(self, error):  # todo: create error response and append to the send buffer
