@@ -8,7 +8,7 @@ import requests
 from requests.exceptions import HTTPError
 import numpy as np
 
-from zra_ims._encrypt import read_db_config, format_data, DataEnc, key
+from _encrypt import read_db_config, format_data, DataEnc, key
 
 enc = DataEnc()
 log = logging.getLogger(__name__)
@@ -110,6 +110,7 @@ class RedisInsert(threading.Thread):
         self.start_num = self.invoice_range[0][1]
         self.end_num = self.invoice_range[0][2]
         self.invoice_generator = map(lambda x: '_'.join([self.invoice_code, str(x)]), np.arange(1, 1000000))
+        self.result = np.array_split(list(self.invoice_generator), 20)
         self.HEADERS = {
             'Content-Length': '1300',
             'Content-Type': 'application/json',
@@ -171,14 +172,14 @@ class RedisInsert(threading.Thread):
                 invoice_range_insert(invoice_code, start_num, end_num, total, 0, datetime.now())
 
     def run(self):
-        for invoice in self.invoice_generator:
+        for invoice_chunk in self.result:
             try:
-                master.lpush('invoices', invoice)
+                master.lpush('invoices', *invoice_chunk)
             except:
                 log.exception('Error writing to redis')
             else:
                 log.info(f"Write to redis completed. \ninvoice code: {self.invoice_code}. "
                          f"invoice range: {'_'.join([self.start_num, self.end_num])}")
-                
+
             invoice_range_update()
             self.server_exchange('INVOICE-APP-R', self.id)
