@@ -6,7 +6,7 @@ from mysql.connector import MySQLConnection, Error
 import requests
 from requests.exceptions import HTTPError
 
-from zra_ims._encrypt import DataEnc, read_db_config, key, format_data
+from _encrypt import DataEnc, read_db_config, key, format_data
 
 encrypt = DataEnc()
 

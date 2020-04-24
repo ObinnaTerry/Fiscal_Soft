@@ -5,7 +5,7 @@ import requests
 from requests.exceptions import HTTPError
 from mysql.connector import MySQLConnection, Error
 
-from zra_ims._encrypt import DataEnc, read_db_config, key, format_data
+from _encrypt import DataEnc, read_db_config, key, format_data
 
 HEADERS = {
     'Content-Length': '1300',
@@ -143,8 +143,8 @@ class SetUp:
                     end_num = invoice_range['number-end']
                     total = int(end_num) - int(start_num) + 1
 
-                    invoice_range_insert(invoice_code, start_num, end_num, total, 1, datetime.now())
-                    # set use flag to 1: inuse. The first invoice range will be used immediately
+                    invoice_range_insert(invoice_code, start_num, end_num, total, 0, datetime.now())
+                    # set use flag to 0: unused.
             else:
                 raise Exception('Invoice range APP failure: ', data)
 
